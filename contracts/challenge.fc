@@ -1,0 +1,33 @@
+#include "imports/stdlib.fc";
+
+;; solved event is represented as a message from challenge to itself
+() emit_solved_event() impure {
+    cell msg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_slice(my_address())
+        .store_coins(0)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+    .end_cell();
+    send_raw_message(msg, SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+
+    if (flags & 1) { ;; ignore bounced messages
+        return ();
+    }
+    slice sender_address = cs~load_msg_addr();
+
+    if (in_msg_body.slice_empty?()) {
+        return ();
+    }
+
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    if (op == 1337) {
+        emit_solved_event();
+    }
+}
