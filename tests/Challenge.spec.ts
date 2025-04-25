@@ -36,7 +36,7 @@ describe('Challenge', () => {
             success: true,
         });
 
-        exploit = blockchain.openContract(Exploit.createFromConfig({}, exploitCode));
+        exploit = blockchain.openContract(Exploit.createFromConfig({challengeAddress: challenge.address}, exploitCode));
 
         exploitDeployer = await blockchain.treasury('exploitDeployer');
 
@@ -60,7 +60,7 @@ describe('Challenge', () => {
             to: exploit.address,
             value: toNano('1'),
             body: beginCell()
-                .storeAddress(challenge.address)
+                .storeUint(1, 32) // exploit::op::run
             .endCell(),
         });
         
@@ -68,6 +68,7 @@ describe('Challenge', () => {
         expect(result.transactions).toHaveTransaction({
             from: challenge.address,
             to: challenge.address,
+            op: 1337,
             success: true,
         });
     });

@@ -1,11 +1,12 @@
-import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
-import { Cell, toNano, beginCell } from '@ton/core';
-import { Challenge } from '../wrappers/Challenge';
-import { Exploit } from '../wrappers/Exploit';
+import {Blockchain} from '@ton/sandbox';
+import {beginCell, Cell, toNano} from '@ton/core';
+import {Challenge} from '../wrappers/Challenge';
+import {Exploit} from '../wrappers/Exploit';
 import '@ton/test-utils';
-import { compile } from '@ton/blueprint';
-import express, { Request, Response } from 'express';
+import {compile} from '@ton/blueprint';
+import express, {Request, Response} from 'express';
 import bodyParser from 'body-parser';
+import {findTransaction} from "@ton/test-utils";
 
 const FLAG = process.env.FLAG || 'ctf{test-flag}';
 
@@ -30,7 +31,7 @@ app.post('/submit', async (req: Request, res: Response) => {
         await challenge.sendDeploy(deployer.getSender(), toNano('1'));
         
         // Deploy exploit contract
-        const exploit = blockchain.openContract(Exploit.createFromConfig({}, exploitCode));
+        const exploit = blockchain.openContract(Exploit.createFromConfig({challengeAddress: challenge.address}, exploitCode));
         const exploitDeployer = await blockchain.treasury('exploitDeployer');
         await exploit.sendDeploy(exploitDeployer.getSender(), toNano('1'));
         
@@ -39,21 +40,18 @@ app.post('/submit', async (req: Request, res: Response) => {
             to: exploit.address,
             value: toNano('1'),
             body: beginCell()
-                .storeAddress(challenge.address)
+                .storeUint(1, 32) // exploit::op::run
                 .endCell(),
         });
-        
+
         // Check if the exploit was successful by verifying if a solve event was emitted
         // solved event is represented as a message from challenge to itself
-        const success = Array.from(result.transactions.values()).some(tx => {
-            const outMessages = Array.from(tx.outMessages.values());
-            return outMessages.some(msg => 
-                msg.info.type === 'internal' && 
-                msg.info.src?.equals(challenge.address) &&
-                msg.info.dest?.equals(challenge.address)
-            );
-        });
-
+        const success = findTransaction(result.transactions, {
+            from: challenge.address,
+            to: challenge.address,
+            op: 1337,
+            success: true,
+        }) !== undefined;
         let response: any = { success };
         if (success) {
             response.flag = FLAG;

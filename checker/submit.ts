@@ -1,4 +1,4 @@
-import { compile } from '@ton/blueprint';
+import {compile} from '@ton/blueprint';
 import axios from 'axios';
 
 async function main() {
