@@ -1,0 +1,50 @@
+#include "stdlib.fc";
+
+() send_msg(slice recipient, int amount, slice body, int mode) impure {
+    cell msg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_slice(recipient)
+        .store_coins(amount)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_slice(body)
+        .end_cell();
+    send_raw_message(msg, mode);
+}
+
+cell build_stateinit(cell init_code, cell init_data) inline {
+    return begin_cell()
+        .store_uint(0, 1) ;; split_depth:(Maybe (## 5))
+        .store_uint(0, 1) ;; special:(Maybe TickTock)
+        .store_uint(1, 1) ;; (Maybe ^Cell)
+        .store_uint(1, 1) ;; (Maybe ^Cell)
+        .store_uint(0, 1) ;; (HashmapE 256 SimpleLib)
+        .store_ref(init_code)
+        .store_ref(init_data)
+        .end_cell();
+}
+
+slice derive_contract_address(cell code, cell data) inline {
+    cell state_init = build_stateinit(code, data);
+    return begin_cell()
+        .store_uint(2, 2)
+        .store_uint(0, 1)
+        .store_int(BASECHAIN, 8)
+        .store_uint(state_init.cell_hash(), 256)
+        .end_cell()
+        .begin_parse();
+}
+
+() deploy_contract(int amount, cell code, cell data, cell body, int msg_mode) impure {
+    var msg = begin_cell()
+        .store_uint(0x18, 6)
+        .store_slice(derive_contract_address(code, data))
+        .store_coins(amount)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32)
+        .store_uint(2 + 1, 2) ;; init:(Maybe (Either StateInit ^StateInit))
+        .store_uint(1, 1) ;; body:(Either X ^X)
+        .store_ref(build_stateinit(code, data))
+        .store_ref(body)
+        .end_cell();
+
+    send_raw_message(msg, msg_mode);
+}

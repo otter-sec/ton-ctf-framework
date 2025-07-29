@@ -1,0 +1,28 @@
+#include "imports/stdlib.fc";
+#include "imports/constants.fc";
+#include "imports/utils.fc";
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+
+    if (flags & 1) { ;; ignore bounced messages
+        return ();
+    }
+    slice sender_address = cs~load_msg_addr();
+
+    if (in_msg_body.slice_empty?()) {
+        return ();
+    }
+
+    int op = in_msg_body~load_uint(32);
+
+    if (op == "challenge_child::op::solve"c) {
+        ;; Storage contains the parent address
+        (_, slice parent_address) = get_data().begin_parse().load_msg_addr();
+        send_msg(parent_address, 0, begin_cell()
+            .store_uint("challenge::op::solve"c, 32)
+            .end_cell()
+            .begin_parse(), SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+    }
+}

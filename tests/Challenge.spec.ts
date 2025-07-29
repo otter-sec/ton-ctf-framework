@@ -36,7 +36,7 @@ describe('Challenge', () => {
             success: true,
         });
 
-        exploit = blockchain.openContract(Exploit.createFromConfig({challengeAddress: challenge.address}, exploitCode));
+        exploit = blockchain.openContract(Exploit.createFromConfig({}, exploitCode));
 
         exploitDeployer = await blockchain.treasury('exploitDeployer');
 
@@ -56,16 +56,23 @@ describe('Challenge', () => {
     });
 
     it('should solve', async () => {
-        const result = await exploitDeployer.send({
-            to: exploit.address,
-            value: toNano('1'),
-            body: beginCell()
-                .storeUint(1, 32) // exploit::op::run
-            .endCell(),
-        });
+        const allTransactions = [];
+
+        for (let i = 0; i < 5; i++) {
+            const result = await exploitDeployer.send({
+                to: exploit.address,
+                value: toNano('1'),
+                body: beginCell()
+                    .storeUint(1, 32) // exploit::op::run
+                    .storeAddress(challenge.address)
+                    .storeUint(i, 8) // step number
+                .endCell(),
+            });
+            allTransactions.push(...result.transactions);
+        }
         
         // solved event is represented as a message from challenge to itself
-        expect(result.transactions).toHaveTransaction({
+        expect(allTransactions).toHaveTransaction({
             from: challenge.address,
             to: challenge.address,
             op: 1337,

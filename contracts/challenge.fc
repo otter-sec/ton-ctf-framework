@@ -1,22 +1,16 @@
 #include "imports/stdlib.fc";
 #include "imports/constants.fc";
+#include "imports/utils.fc";
+#include "imports/challenge_child_code.fc";
 
 ;; solved event is represented as a message from challenge to itself
 () emit_solved_event() impure {
     ~strdump("Emitting solved event...");
     slice body = begin_cell()
         .store_uint(chall::event::solved, 32)
-        .store_uint(0, 64)
         .end_cell()
         .begin_parse();
-    cell msg = begin_cell()
-        .store_uint(0x18, 6)
-        .store_slice(my_address())
-        .store_coins(0)
-        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
-        .store_slice(body)
-    .end_cell();
-    send_raw_message(msg, SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+    send_msg(my_address(), 0, body, SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -33,9 +27,27 @@
     }
 
     int op = in_msg_body~load_uint(32);
-    int query_id = in_msg_body~load_uint(64);
 
-    if (op == 42) {
+    if (op == "challenge::op::deploy_child"c) {
+        throw_unless(100, get_data().begin_parse().slice_empty?());
+        ~strdump("Deploying child contract");
+        
+        cell child_code = challenge_child_code();
+        cell child_data = begin_cell().store_slice(my_address()).end_cell();
+    
+        deploy_contract(ONE_TON / 2, child_code, child_data, begin_cell().end_cell(), SEND_MODE_REGULAR);
+
+        slice child_address = derive_contract_address(child_code, child_data);
+        slice deployed_message_body = begin_cell()
+            .store_uint("challenge::callback::deployed"c, 32)
+            .store_slice(child_address)
+            .end_cell()
+            .begin_parse();
+        send_msg(sender_address, 0, deployed_message_body, SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
+
+        set_data(begin_cell().store_slice(child_address).end_cell());
+    } elseif (op == "challenge::op::solve"c) {
+        throw_unless(101, equal_slices_bits(sender_address, get_data().begin_parse()));
         emit_solved_event();
     }
 }

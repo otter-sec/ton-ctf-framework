@@ -12,7 +12,8 @@ async function main() {
         
         console.log('Submitting to server...');
         const response = await axios.post(submitUrl, {
-            code: exploitCodeBase64
+            code: exploitCodeBase64,
+            steps: 5
         });
         
         console.log('Server response:', response.data);

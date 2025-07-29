@@ -22,6 +22,11 @@ compile('Challenge').then(code => {
 app.post('/submit', async (req: Request, res: Response) => {
     try {
         const exploitCode = Cell.fromBase64(req.body.code);
+        const steps = parseInt(req.body.steps);
+        if (steps > 5) {
+            res.status(400).json({ error: 'Cannot run more than 5 steps' });
+            return;
+        }
         
         const blockchain = await Blockchain.create();
         
@@ -35,23 +40,31 @@ app.post('/submit', async (req: Request, res: Response) => {
         const exploitDeployer = await blockchain.treasury('exploitDeployer');
         await exploit.sendDeploy(exploitDeployer.getSender(), toNano('1'));
         
-        // Call exploit with challenge address
-        const result = await exploitDeployer.send({
-            to: exploit.address,
-            value: toNano('1'),
-            body: beginCell()
-                .storeUint(1, 32) // exploit::op::run
-                .endCell(),
-        });
+        // Run exploit steps
+        let success = false;
+        for (let i = 0; i < steps; i++) {
+            const result = await exploitDeployer.send({
+                to: exploit.address,
+                value: toNano('1'),
+                body: beginCell()
+                    .storeUint(1, 32) // exploit::op::run
+                    .storeAddress(challenge.address)
+                    .storeUint(i, 8) // step number
+                    .endCell(),
+            });
 
-        // Check if the exploit was successful by verifying if a solve event was emitted
-        // solved event is represented as a message from challenge to itself
-        const success = findTransaction(result.transactions, {
-            from: challenge.address,
-            to: challenge.address,
-            op: 1337,
-            success: true,
-        }) !== undefined;
+            // Check if the exploit was successful by verifying if a solve event was emitted
+            // solved event is represented as a message from challenge to itself
+            success = findTransaction(result.transactions, {
+                from: challenge.address,
+                to: challenge.address,
+                op: 1337,
+                success: true,
+            }) !== undefined;
+            if (success) {
+                break;
+            }
+        }
         let response: any = { success };
         if (success) {
             response.flag = FLAG;
@@ -68,5 +81,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-
-
