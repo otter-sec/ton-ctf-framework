@@ -1,4 +1,14 @@
-import { Address, beginCell, Cell, Contract, contractAddress, ContractProvider, Sender, SendMode } from '@ton/core';
+import {
+    Address,
+    beginCell,
+    Cell,
+    Contract,
+    ContractABI,
+    contractAddress,
+    ContractProvider,
+    Sender,
+    SendMode
+} from '@ton/core';
 
 export type ChallengeConfig = {};
 
@@ -7,6 +17,8 @@ export function challengeConfigToCell(config: ChallengeConfig): Cell {
 }
 
 export class Challenge implements Contract {
+    abi: ContractABI = { name: 'Challenge' };
+
     constructor(readonly address: Address, readonly init?: { code: Cell; data: Cell }) {}
 
     static createFromAddress(address: Address) {
